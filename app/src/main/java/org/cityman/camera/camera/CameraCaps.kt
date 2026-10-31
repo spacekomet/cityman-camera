@@ -51,20 +51,26 @@ class CameraCaps(val id: String, val chars: CameraCharacteristics) {
 
     val hasFocus: Boolean get() = minFocusDiopters > 0f && CameraMetadata.CONTROL_AF_MODE_OFF in afModes
     val hasAutoFocus: Boolean get() = CameraMetadata.CONTROL_AF_MODE_AUTO in afModes
-
+    
+    /** Fallback limits, tightened when a phone's camera HAL crashes with the default photo streams. */
+    var jpegPixelLimit: Long = Long.MAX_VALUE
+    var previewWidthLimit: Int = 1920
+    
     fun jpegSize(format: PhotoFormat): Size {
-        val largest = jpegSizes.maxBy { it.area() }
+        val sizes = jpegSizes.filter { it.area() <= jpegPixelLimit }.ifEmpty { jpegSizes }
+        val largest = sizes.maxBy { it.area() }
         return when (format) {
             PhotoFormat.FULL -> largest
-            PhotoFormat.RATIO_4_3 -> jpegSizes.filter { it.ratioNear(4f / 3f) }.maxByOrNull { it.area() } ?: largest
-            PhotoFormat.RATIO_16_9 -> jpegSizes.filter { it.ratioNear(16f / 9f) }.maxByOrNull { it.area() } ?: largest
+            PhotoFormat.RATIO_4_3 -> sizes.filter { it.ratioNear(4f / 3f) }.maxByOrNull { it.area() } ?: largest
+            PhotoFormat.RATIO_16_9 -> sizes.filter { it.ratioNear(16f / 9f) }.maxByOrNull { it.area() } ?: largest
         }
     }
+
 
     /** Largest viewfinder size up to 1080p whose shape is closest to [target]. */
     fun previewSize(target: Size): Size {
         val ratio = target.width.toFloat() / target.height
-        val candidates = previewSizes.filter { it.width <= 1920 && it.height <= 1080 }.ifEmpty { previewSizes }
+        val candidates = previewSizes.filter { it.width <= previewWidthLimit && it.height <= 1080 }.ifEmpty { previewSizes }
         return candidates.minWith(
             compareBy<Size> { (abs(it.width.toFloat() / it.height - ratio) * 50).toInt() }
                 .thenByDescending { it.area() },
