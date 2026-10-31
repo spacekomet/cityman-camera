@@ -828,6 +828,12 @@ class CameraController(private val context: Context) {
      * telling the user.
      */
     private fun recoverCamera(why: String) {
+        if (!analysisRefused && _state.value.mode == CaptureMode.PHOTO) {
+           analysisRefused = true
+           analyzer?.release()
+           analyzer = null
+           recoveries = 0
+        }
         if (recoveries >= 1 || !started) {
             report("Could not start the camera session: $why")
             return
