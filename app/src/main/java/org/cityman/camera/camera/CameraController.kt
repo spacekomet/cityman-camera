@@ -1669,7 +1669,7 @@ class CameraController(private val context: Context) {
         }
         val fd = store.openFd(uri)
         val fps = c.fpsRange(video = true)?.upper ?: 30
-        val r = MediaRecorder(context)
+        val r = if (android.os.Build.VERSION.SDK_INT >= 31) MediaRecorder(context) else MediaRecorder()
         try {
             val lapse = _state.value.timelapse
             val withAudio = audio && lapse <= 1
