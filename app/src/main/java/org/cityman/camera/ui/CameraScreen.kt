@@ -106,7 +106,7 @@ fun CameraScreen(
     val rotation by animateFloatAsState(iconRotation, tween(250), label = "iconRotation")
 
     // Accent colour: Android's dynamic accent (light tone, for the black UI) or amber.
-    val dynamicAccent = colorResource(android.R.color.system_accent1_300)
+    val dynamicAccent = if (android.os.Build.VERSION.SDK_INT >= 31) colorResource(android.R.color.system_accent1_300) else Amber
     LaunchedEffect(st.systemAccent, dynamicAccent) {
         Accent = if (st.systemAccent) dynamicAccent else Amber
         controller.peakingColor = Accent.toArgb()
