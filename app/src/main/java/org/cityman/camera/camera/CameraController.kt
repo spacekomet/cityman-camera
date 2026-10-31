@@ -781,7 +781,7 @@ class CameraController(private val context: Context) {
             }
             outputs += OutputConfiguration(vp.reader.surface)
         }
-        Log.i(TAG, "session gen=$gen camera=${c.id} mode=${st.mode} preview=${_state.value.previewSize} jpeg=${c.jpegSize(st.format)} step=$photoStep raw=$withRaw analysis=$withAnalyss")
+        Log.i(TAG, "session gen=$gen camera=${c.id} mode=${st.mode} preview=${_state.value.previewSize} jpeg=${c.jpegSize(st.format)} step=$photoStep raw=$withRaw analysis=$withAnalysis")
         _state.update { it.copy(previewRotation = previewRotation(c)) }
         val config = SessionConfiguration(
             SessionConfiguration.SESSION_REGULAR, outputs, camExecutor,
