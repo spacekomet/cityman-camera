@@ -231,6 +231,12 @@ class CameraController(private val context: Context) {
     private var analyzer: FrameAnalyzer? = null
     /** The HAL refused a session with the analysis stream on this camera. */
     private var analysisRefused = false
+    /** 0 = normal photo streams; each camera crash in photo mode moves one step down (see recoverCamera). */
+    private var photoStep = 0
+    /** The photo fallback is only for the Lumia 950 (talkman); the 950 XL (cityman) keeps the original behaviour. */
+    private val photoFallbackEnabled: Boolean =
+        android.os.Build.MODEL.trim().equals("Lumia 950", ignoreCase = true) ||
+            android.os.Build.DEVICE.trim().equals("talkman", ignoreCase = true)
     private var recorder: MediaRecorder? = null
     private var recordingUri: Uri? = null
     private var recordingFd: ParcelFileDescriptor? = null
@@ -288,6 +294,7 @@ class CameraController(private val context: Context) {
         if (cameraIds.size < 2) return@post
         closeCamera()
         analysisRefused = false
+        photoStep = 0
         controls = ManualControls()
         zoom = 1f
         _state.update {
@@ -570,6 +577,8 @@ class CameraController(private val context: Context) {
             report("Camera $id: ${e.message}")
             return
         }
+        c.jpegPixelLimit = if (photoStep >= 2) 8_000_000L else Long.MAX_VALUE
+        c.previewWidthLimit = if (photoStep >= 3) 1280 else 1920
         caps = c
         _state.update { it.copy(caps = c) }
         try {
@@ -772,7 +781,7 @@ class CameraController(private val context: Context) {
             }
             outputs += OutputConfiguration(vp.reader.surface)
         }
-        Log.i(TAG, "session gen=$gen camera=${c.id} mode=${st.mode} preview=${_state.value.previewSize} raw=$withRaw analysis=$withAnalysis")
+        Log.i(TAG, "session gen=$gen camera=${c.id} mode=${st.mode} preview=${_state.value.previewSize} jpeg=${c.jpegSize(st.format)} step=$photoStep raw=$withRaw analysis=$withAnalyss"i)
         _state.update { it.copy(previewRotation = previewRotation(c)) }
         val config = SessionConfiguration(
             SessionConfiguration.SESSION_REGULAR, outputs, camExecutor,
@@ -828,12 +837,19 @@ class CameraController(private val context: Context) {
      * telling the user.
      */
     private fun recoverCamera(why: String) {
-        if (!analysisRefused && _state.value.mode == CaptureMode.PHOTO) {
-           analysisRefused = true
-           analyzer?.release()
-           analyzer = null
-           recoveries = 0
+        // Some camera HALs crash with the full set of photo streams. Simplify them step by step:
+        // 1 = no analysis stream, 2 = JPEG of at most 8 MP, 3 = preview of at most 1280 px wide.
+        if (photoFallbackEnabled && _state.value.mode == CaptureMode.PHOTO && photoStep < 3) {
+            photoStep++
+            if (photoStep == 1) {
+                analysisRefused = true
+                analyzer?.release()
+                analyzer = null
+            }
+            Log.w(TAG, "photo fallback step $photoStep after: $why")
+            recoveries = 0
         }
+
         if (recoveries >= 1 || !started) {
             report("Could not start the camera session: $why")
             return
